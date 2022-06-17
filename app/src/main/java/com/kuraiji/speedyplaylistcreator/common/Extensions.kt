@@ -1,12 +1,13 @@
 package com.kuraiji.speedyplaylistcreator.common
 
 import android.content.Context
-import android.content.ContextWrapper
-import androidx.activity.ComponentActivity
-import com.kuraiji.speedyplaylistcreator.ui.MainActivity
+import android.util.Log
+import android.widget.Toast
 
-internal fun Context.findActivity(): MainActivity? = when (this) {
-    is MainActivity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> null
+internal fun pushToast(context: Context, mes: CharSequence) {
+    Toast.makeText(context, mes, Toast.LENGTH_SHORT).show()
+}
+
+internal fun debugLog(mes: String) {
+    Log.d("MyDebug", mes)
 }

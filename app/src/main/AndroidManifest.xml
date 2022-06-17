@@ -4,6 +4,7 @@
     package="com.kuraiji.speedyplaylistcreator">
 
     <application
+        android:name=".domain.ScanApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"

@@ -20,15 +20,4 @@ class MainActivity : ComponentActivity() {
             DestinationsNavHost(navGraph = NavGraphs.root)
         }
     }
-    fun openDirectory() {
-        val result = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            result: ActivityResult ->
-                if(result.resultCode == Activity.RESULT_OK) {
-                    Toast.makeText(this, result.data.toString(), Toast.LENGTH_LONG).show()
-                }
-        }
-        result.launch(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE))
-    }
 }
-
-//context.startActivity(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE))
