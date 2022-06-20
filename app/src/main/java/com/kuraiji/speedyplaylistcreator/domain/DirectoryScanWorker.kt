@@ -9,25 +9,29 @@ import androidx.lifecycle.MutableLiveData
 import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.kuraiji.speedyplaylistcreator.R
-import kotlinx.coroutines.delay
+import com.kuraiji.speedyplaylistcreator.common.debugLog
+import com.kuraiji.speedyplaylistcreator.data.PlaylistManager
 import kotlin.random.Random
-
-import com.kuraiji.speedyplaylistcreator.data.StorageManager
 
 class DirectoryScanWorker(
     private val context: Context,
     private val workerParameters: WorkerParameters
 ): CoroutineWorker(context, workerParameters) {
-    //var uris: MutableLiveData<MutableList<Uri>> = MutableLiveData(ArrayList())
     lateinit var recursiveTraverse: (DocumentFile) -> Unit
     private lateinit var baseDirUri: Uri
+    private val uris: MutableLiveData<MutableList<Uri>> = MutableLiveData(ArrayList())
 
     override suspend fun doWork(): Result {
         baseDirUri = workerParameters.inputData.getString(WorkerKeys.DIR_URI)?.toUri() ?: return Result.failure()
         startForegroundService()
         scanDirectory()
-        return Result.success()
+        return Result.success(
+            workDataOf(
+                WorkerKeys.TRACK_AMT to uris.value?.size
+            )
+        )
     }
 
     private suspend fun startForegroundService() {
@@ -44,7 +48,6 @@ class DirectoryScanWorker(
     }
 
     private fun scanDirectory() {
-        DocumentFile.fromTreeUri(context, baseDirUri)
         recursiveTraverse = { dFile ->
             if(dFile.isDirectory) {
                 dFile.listFiles().forEach { inDFile ->
@@ -54,11 +57,12 @@ class DirectoryScanWorker(
             if(dFile.isFile) {
                 dFile.type?.let { mime ->
                     if(mime.contains("audio", true)) {
-                        //uris.value!!.add(dFile.uri)
-                        StorageManager.storeUri(dFile.uri, context)
+                        uris.value?.add(dFile.uri)
                     }
                 }
             }
         }
+        recursiveTraverse(DocumentFile.fromTreeUri(context, baseDirUri) ?: return)
+        PlaylistManager.storeUris(ArrayList(uris.value ?: return), context)
     }
 }

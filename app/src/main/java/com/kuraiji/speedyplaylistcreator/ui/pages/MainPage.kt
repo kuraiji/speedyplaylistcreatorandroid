@@ -2,6 +2,7 @@ package com.kuraiji.speedyplaylistcreator.ui.pages
 
 import android.content.res.Configuration
 import android.net.Uri
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -9,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import com.kuraiji.speedyplaylistcreator.domain.MainViewModel
 
 import com.ramcosta.composedestinations.navigation.DestinationsNavigator
 import com.ramcosta.composedestinations.annotation.Destination
@@ -25,22 +27,22 @@ fun MainPreview() {
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            HomePage(uris = ArrayList())
+            HomePage()
         }
     }
 }
 
 @Destination
 @Composable
-fun MainDestination(
+fun Main(
     navigator: DestinationsNavigator,
 ) {
-    SpeedyPlaylistCreatorTheme() {
+    SpeedyPlaylistCreatorTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            HomePage(navigator = navigator, uris = ArrayList())
+            HomePage(navigator = navigator)
         }
     }
 }
@@ -48,7 +50,7 @@ fun MainDestination(
 @Composable
 fun HomePage(
     navigator: DestinationsNavigator? = null,
-    uris: ArrayList<Uri>
+    viewModel: MainViewModel = viewModel()
 ) {
     Text(text = "Konichiwa")
 }
