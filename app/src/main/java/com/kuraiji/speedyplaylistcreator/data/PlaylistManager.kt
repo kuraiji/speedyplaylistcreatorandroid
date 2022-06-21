@@ -30,6 +30,7 @@ object PlaylistManager {
     }
 
     fun retrieveUris(uris: MutableLiveData<MutableList<Uri>>, context: Context) {
+        debugLog("Retrieving...")
         val db = Room.databaseBuilder(
             context,
             PlaylistData.PlaylistDatabase::class.java, "PlaylistDatabase"

@@ -77,6 +77,7 @@ fun LandingPage(
     var scanRequest: OneTimeWorkRequest
     val (state, setState) = remember { mutableStateOf(WorkInfo.State.BLOCKED)}
     val (trackAmt, setTrackAmt) = remember { mutableStateOf(0) }
+    workManager.pruneWork()
     workManager.getWorkInfosForUniqueWorkLiveData(WORKNAME).observe(context as MainActivity) { workInfoList ->
         if(workInfoList == null || workInfoList.size < 1) return@observe
         setState(workInfoList[0].state)
