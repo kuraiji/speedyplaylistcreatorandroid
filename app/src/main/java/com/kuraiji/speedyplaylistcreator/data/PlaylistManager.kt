@@ -1,103 +1,142 @@
 package com.kuraiji.speedyplaylistcreator.data
 
 import android.content.Context
+import android.database.sqlite.SQLiteConstraintException
 import android.net.Uri
 import android.media.MediaMetadataRetriever
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.core.net.toUri
 import androidx.lifecycle.MutableLiveData
 import androidx.room.*
+import androidx.core.net.toUri
+import androidx.lifecycle.LiveData
 import com.kuraiji.speedyplaylistcreator.common.debugLog
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.lang.Error
+import java.lang.RuntimeException
 
 object PlaylistManager {
     fun wipeDatabase(context: Context) {
-        val db = Room.databaseBuilder(
-            context,
-            PlaylistData.PlaylistDatabase::class.java, "PlaylistDatabase"
-        ).fallbackToDestructiveMigration().build()
+        val db = PlaylistData.PlaylistDatabase.getDatabase(context)
         db.clearAllTables()
     }
 
     fun storeUris(uris: ArrayList<Uri>, context: Context) {
-        val db = Room.databaseBuilder(
-            context,
-            PlaylistData.PlaylistDatabase::class.java, "PlaylistDatabase"
-        ).fallbackToDestructiveMigration().build()
+        val db = PlaylistData.PlaylistDatabase.getDatabase(context)
         db.clearAllTables()
         val uriDao = db.uriDao()
         uris.forEach { uri ->
-            uriDao.insert(PlaylistData.Uri(0, uri.toString()))
+            uriDao.insert(PlaylistData.Uri(uri.toString()))
         }
     }
 
-    fun retrieveUris(uris: MutableLiveData<MutableList<Uri>>, context: Context) {
-        debugLog("Retrieving...")
-        val db = Room.databaseBuilder(
-            context,
-            PlaylistData.PlaylistDatabase::class.java, "PlaylistDatabase"
-        ).fallbackToDestructiveMigration().build()
+    fun indexUris(context: Context, callback: (Int)->Unit) {
+        val db = PlaylistData.PlaylistDatabase.getDatabase(context)
         val uriDao = db.uriDao()
-        uriDao.selectAll().forEach { stringUri ->
-            uris.value?.add(stringUri.uri.toUri())
+        val trackDao = db.trackDao()
+        val albumDao = db.albumArtistDao()
+        uriDao.selectAll().forEachIndexed { index, row ->
+            val uri = row.uri.toUri()
+            val mmr = MediaMetadataRetriever()
+            try {
+                mmr.setDataSource(context, uri)
+            }
+            catch (err: RuntimeException) {
+                callback(index)
+                return@forEachIndexed
+            }
+            val trackName = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: ""
+            val trackNum = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER) ?: ""
+            val discNum = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DISC_NUMBER) ?: ""
+            val album = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM) ?: ""
+            val artist = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST) ?:
+                mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: ""
+            trackDao.insert(PlaylistData.Track(
+                0,
+                trackName,
+                if(trackNum != "") trackNum.toInt() else 0,
+                if(discNum != "") discNum.toInt() else 0,
+                album,
+                artist,
+                row.uri
+            ))
+            try {
+                albumDao.insert(PlaylistData.AlbumArtist(
+                    album,
+                    artist
+                ))
+            }
+            catch (err: SQLiteConstraintException) { }
+            mmr.close()
+            callback(index)
         }
+    }
+
+    fun getNumberOfUris(context: Context) : Long {
+        val db = PlaylistData.PlaylistDatabase.getDatabase(context)
+        val uriDao = db.uriDao()
+        return uriDao.numOfRows()
+    }
+
+    fun getAlbums(context: Context) : LiveData<Array<PlaylistData.AlbumArtist>> {
+        val db = PlaylistData.PlaylistDatabase.getDatabase(context)
+        return db.albumArtistDao().selectAll()
     }
 }
 
-private class PlaylistData {
+class PlaylistData {
     @Entity
     data class Track(
         @PrimaryKey(autoGenerate = true)
-        val id: Long,
+        val trackId: Long,
         val title: String,
         val trackNum: Int,
         val discNum: Int,
-        val trackUriId: Long,
-        val trackAlbumId: Long,
-        val trackArtistId: Long
+        val album: String,
+        val artist: String,
+        val uri: String
     )
 
-    @Entity
-    data class Album(
-        @PrimaryKey(autoGenerate = true)
-        val albumId: Long,
-        val title: String
-    )
-
-    @Entity
-    data class Artist(
-        @PrimaryKey(autoGenerate = true)
-        val artistId: Long,
-        val name: String
+    @Entity(primaryKeys = ["album", "artist"])
+    data class AlbumArtist(
+        val album: String,
+        val artist: String
     )
 
     @Entity
     data class Uri(
-        @PrimaryKey(autoGenerate = true)
-        val uriId: Long,
+        @PrimaryKey()
         val uri: String
     )
 
-    @Database(entities = [Track::class, Album::class, Artist::class, Uri::class], version = 1)
+    @Database(entities = [Track::class, AlbumArtist::class, Uri::class], version = 1)
     abstract class PlaylistDatabase : RoomDatabase() {
         abstract fun trackDao(): TrackDao
-        abstract fun albumDao(): AlbumDao
-        abstract fun artistDao(): ArtistDao
+        abstract fun albumArtistDao(): AlbumArtistDao
         abstract fun uriDao(): UriDao
+
+        companion object {
+            private var INSTANCE: PlaylistDatabase? = null
+            fun getDatabase(context: Context): PlaylistDatabase {
+                if(INSTANCE == null) {
+                    synchronized(this) {
+                        INSTANCE = Room.databaseBuilder(
+                            context,
+                            PlaylistDatabase::class.java, "PlaylistDatabase"
+                        ).fallbackToDestructiveMigration().build()
+                    }
+                }
+                return INSTANCE!!
+            }
+        }
     }
-
+    /*
     data class AlbumWithTracks(
-        @Embedded val album: Album,
+        @Embedded val album: AlbumArtist,
         @Relation(
-            parentColumn = "albumId",
-            entityColumn = "trackAlbumId"
-        )
-        val tracks: List<Track>
-    )
-
-    data class ArtistWithTracks(
-        @Embedded val artist: Artist,
-        @Relation(
-            parentColumn = "artistId",
-            entityColumn = "trackArtistId"
+            parentColumn = "albumArtistId",
+            entityColumn = "trackAlbumArtistId"
         )
         val tracks: List<Track>
     )
@@ -110,23 +149,22 @@ private class PlaylistData {
         )
         val tracks: List<Track>
     )
-
+    */
     @Dao
-    interface AlbumDao {
+    interface AlbumArtistDao {
         @Insert
-        fun insert(vararg albums: Album)
-    }
+        fun insert(vararg albums: AlbumArtist)
+        @Query("SELECT * FROM albumartist")
+        fun selectAll() : LiveData<Array<AlbumArtist>>
 
-    @Dao
-    interface ArtistDao {
-        @Insert
-        fun insert(vararg artists: Artist)
     }
 
     @Dao
     interface TrackDao {
         @Insert
         fun insert(vararg tracks: Track)
+        @Query("SELECT * FROM track")
+        fun selectAll() : LiveData<Array<Track>>
     }
 
     @Dao
@@ -135,5 +173,7 @@ private class PlaylistData {
         fun insert(vararg uris: Uri)
         @Query("SELECT * FROM uri")
         fun selectAll(): Array<Uri>
+        @Query("SELECT COUNT(*) FROM uri")
+        fun numOfRows(): Long
     }
 }

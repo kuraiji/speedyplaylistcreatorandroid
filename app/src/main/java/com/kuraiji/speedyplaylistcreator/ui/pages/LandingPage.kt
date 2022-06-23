@@ -11,7 +11,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
-import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -20,9 +19,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.documentfile.provider.DocumentFile
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.liveData
 import androidx.work.*
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.kuraiji.speedyplaylistcreator.common.debugLog
 
 import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.annotation.RootNavGraph
@@ -30,8 +29,8 @@ import com.ramcosta.composedestinations.navigation.DestinationsNavigator
 
 import com.kuraiji.speedyplaylistcreator.ui.theme.AppTypography
 import com.kuraiji.speedyplaylistcreator.ui.theme.SpeedyPlaylistCreatorTheme
-import com.kuraiji.speedyplaylistcreator.common.debugLog
 import com.kuraiji.speedyplaylistcreator.domain.DirectoryScanWorker
+import com.kuraiji.speedyplaylistcreator.domain.LandingViewModel
 import com.kuraiji.speedyplaylistcreator.domain.WorkerKeys
 import com.kuraiji.speedyplaylistcreator.ui.MainActivity
 import com.kuraiji.speedyplaylistcreator.ui.pages.destinations.MainDestination
@@ -47,7 +46,26 @@ fun LandingPreview() {
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            LandingPage()
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center) {
+                Text(
+                    text = "Welcome to Speedy Playlist Creator!",
+                    style = AppTypography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(40.dp))
+                Text(
+                    text = "Please select the top-level directory of your local music files to begin.",
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(modifier = Modifier.height(30.dp))
+                Button(
+                    onClick = {}
+                ) {
+                    Text(text = "Select Directory")
+                }
+            }
         }
     }
 }
@@ -70,7 +88,8 @@ fun LandingDestination(
 
 @Composable
 fun LandingPage(
-    navigator: DestinationsNavigator? = null
+    navigator: DestinationsNavigator? = null,
+    viewModel: LandingViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val workManager = WorkManager.getInstance(context)
@@ -79,7 +98,9 @@ fun LandingPage(
     val (trackAmt, setTrackAmt) = remember { mutableStateOf(0) }
     workManager.pruneWork()
     workManager.getWorkInfosForUniqueWorkLiveData(WORKNAME).observe(context as MainActivity) { workInfoList ->
-        if(workInfoList == null || workInfoList.size < 1) return@observe
+        debugLog("Here")
+        if(workInfoList == null || workInfoList.size < 1 || !viewModel.notEntered.value || !viewModel.started.value || workInfoList[0].state == WorkInfo.State.RUNNING) return@observe
+        viewModel.notEntered.value = false
         setState(workInfoList[0].state)
         setTrackAmt(workInfoList[0].outputData.getInt(WorkerKeys.TRACK_AMT, 0))
         navigator?.navigate(MainDestination())
@@ -122,7 +143,10 @@ fun LandingPage(
         )
         Spacer(modifier = Modifier.height(30.dp))
         Button(
-            onClick = {openDirectoryLauncher.launch(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE))},
+            onClick = {
+                viewModel.started.value = true
+                openDirectoryLauncher.launch(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE))
+                      },
             enabled = state != WorkInfo.State.RUNNING && trackAmt < 1
             ) {
             Text(text = "Select Directory")
