@@ -2,19 +2,23 @@ package com.kuraiji.speedyplaylistcreator.data
 
 import android.content.Context
 import android.database.sqlite.SQLiteConstraintException
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.media.MediaMetadataRetriever
-import androidx.compose.runtime.snapshots.SnapshotStateList
+import android.os.ParcelFileDescriptor
+import androidx.core.net.toFile
 import androidx.core.net.toUri
-import androidx.lifecycle.MutableLiveData
+import androidx.documentfile.provider.DocumentFile
 import androidx.room.*
-import androidx.core.net.toUri
 import androidx.lifecycle.LiveData
 import com.kuraiji.speedyplaylistcreator.common.debugLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.lang.Error
+import java.io.File
 import java.lang.RuntimeException
+
+private val IMAGE_NAMES = arrayOf("cover", "front", "folder")
 
 object PlaylistManager {
     fun wipeDatabase(context: Context) {
@@ -79,9 +83,41 @@ object PlaylistManager {
         return uriDao.numOfRows()
     }
 
-    fun getAlbums(context: Context) : LiveData<Array<PlaylistData.AlbumArtist>> {
+    suspend fun getAlbumCover(context: Context, albumArtist: PlaylistData.AlbumArtist) : Bitmap? = withContext(Dispatchers.Default){
         val db = PlaylistData.PlaylistDatabase.getDatabase(context)
-        return db.albumArtistDao().selectAll()
+        val trackDao = db.trackDao()
+        val track = trackDao.getTopTrackFromAlbumArtist(albumArtist.album, albumArtist.artist)
+        val uri = track.uri.toUri()
+        val mmr = MediaMetadataRetriever()
+        try {
+            mmr.setDataSource(context, uri)
+        }
+        catch (err: RuntimeException) {
+            return@withContext null
+        }
+        val byteArray = mmr.embeddedPicture
+        if(byteArray == null) {
+            var dFile = DocumentFile.fromSingleUri(context, uri) ?: return@withContext null
+            val uriPaths = dFile.uri.toString().split("%2F")
+            val uriDirPath = dFile.uri.toString().replace(uriPaths.last(), "").toUri()
+            dFile = DocumentFile.fromTreeUri(context, uriDirPath) ?: return@withContext null
+            dFile.listFiles().forEach { file ->
+                if(file.type == null || file.name == null) return@forEach
+                if(file.type!!.contains("image", true)) {
+                    IMAGE_NAMES.forEach { substring ->
+                        if(file.name!!.contains(substring)) {
+                            val parcelFileDescriptor = context.contentResolver.openFileDescriptor(file.uri, "r")
+                            val fileDescriptor = parcelFileDescriptor?.fileDescriptor
+                            val image = BitmapFactory.decodeFileDescriptor(fileDescriptor)
+                            parcelFileDescriptor?.close()
+                            return@withContext image
+                        }
+                    }
+                }
+            }
+            return@withContext null
+        }
+        return@withContext BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)
     }
 }
 
@@ -165,6 +201,8 @@ class PlaylistData {
         fun insert(vararg tracks: Track)
         @Query("SELECT * FROM track")
         fun selectAll() : LiveData<Array<Track>>
+        @Query("SELECT * FROM track WHERE album LIKE :album AND artist LIKE :artist LIMIT 1")
+        fun getTopTrackFromAlbumArtist(album: String, artist: String) : Track
     }
 
     @Dao

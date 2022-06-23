@@ -96,12 +96,14 @@ fun LandingPage(
     var scanRequest: OneTimeWorkRequest
     val (state, setState) = remember { mutableStateOf(WorkInfo.State.BLOCKED)}
     val (trackAmt, setTrackAmt) = remember { mutableStateOf(0) }
-    workManager.pruneWork()
+    LaunchedEffect(key1 = null) {
+        workManager.pruneWork()
+    }
     workManager.getWorkInfosForUniqueWorkLiveData(WORKNAME).observe(context as MainActivity) { workInfoList ->
-        debugLog("Here")
-        if(workInfoList == null || workInfoList.size < 1 || !viewModel.notEntered.value || !viewModel.started.value || workInfoList[0].state == WorkInfo.State.RUNNING) return@observe
-        viewModel.notEntered.value = false
+        if(workInfoList == null || workInfoList.size < 1) return@observe;
         setState(workInfoList[0].state)
+        if(!viewModel.notEntered.value || !viewModel.started.value || workInfoList[0].state == WorkInfo.State.RUNNING) return@observe
+        viewModel.notEntered.value = false
         setTrackAmt(workInfoList[0].outputData.getInt(WorkerKeys.TRACK_AMT, 0))
         navigator?.navigate(MainDestination())
     }
