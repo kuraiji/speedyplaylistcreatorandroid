@@ -48,7 +48,7 @@ fun AlbumTile(
 
     val coroutineScope = rememberCoroutineScope()
     val (bitmap, setBitmap) = remember { mutableStateOf<Bitmap?>(null)}
-    LaunchedEffect(key1 = null) {
+    LaunchedEffect(key1 = albumArtist) {
         coroutineScope.launch {
             setBitmap(PlaylistManager.getAlbumCover(context, albumArtist))
         }

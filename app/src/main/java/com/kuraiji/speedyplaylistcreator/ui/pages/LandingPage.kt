@@ -22,6 +22,7 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.work.*
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kuraiji.speedyplaylistcreator.common.debugLog
+import com.kuraiji.speedyplaylistcreator.data.PlaylistManager
 
 import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.annotation.RootNavGraph
@@ -100,7 +101,7 @@ fun LandingPage(
         workManager.pruneWork()
     }
     workManager.getWorkInfosForUniqueWorkLiveData(WORKNAME).observe(context as MainActivity) { workInfoList ->
-        if(workInfoList == null || workInfoList.size < 1) return@observe;
+        if(workInfoList == null || workInfoList.size < 1) return@observe
         setState(workInfoList[0].state)
         if(!viewModel.notEntered.value || !viewModel.started.value || workInfoList[0].state == WorkInfo.State.RUNNING) return@observe
         viewModel.notEntered.value = false
@@ -113,8 +114,10 @@ fun LandingPage(
             return@rememberLauncherForActivityResult
         }
         it.data?.also { uri ->
-            uri.data?.let { iUri -> DocumentFile.fromTreeUri(context, iUri)
+            uri.data?.let { iUri ->
+                DocumentFile.fromTreeUri(context, iUri)
                 ?.let { dFile ->
+                    PlaylistManager.saveBaseDir(context, dFile.uri)
                     scanRequest = OneTimeWorkRequestBuilder<DirectoryScanWorker>()
                         .setConstraints(
                             Constraints.Builder()

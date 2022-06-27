@@ -6,7 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.media.MediaMetadataRetriever
-import android.os.ParcelFileDescriptor
+import android.content.SharedPreferences
 import androidx.core.net.toFile
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
@@ -16,9 +16,14 @@ import com.kuraiji.speedyplaylistcreator.common.debugLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.lang.RuntimeException
 
 private val IMAGE_NAMES = arrayOf("cover", "front", "folder")
+private const val SAVE_NAME = "sav"
+private const val SAVE_KEY_BASEDIR = "baseDir"
+private const val MIME_TYPE = "audio/x-mpegurl"
 
 object PlaylistManager {
     fun wipeDatabase(context: Context) {
@@ -31,7 +36,8 @@ object PlaylistManager {
         db.clearAllTables()
         val uriDao = db.uriDao()
         uris.forEach { uri ->
-            uriDao.insert(PlaylistData.Uri(uri.toString()))
+            if(uri.path == null) return@forEach
+            uriDao.insert(PlaylistData.Uri(uri.toString(), uri.path!!))
         }
     }
 
@@ -119,6 +125,94 @@ object PlaylistManager {
         }
         return@withContext BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)
     }
+
+    suspend fun getAlbumTracks(context: Context, albumArtist: PlaylistData.AlbumArtist) : LiveData<Array<PlaylistData.Track>> = withContext(Dispatchers.Default) {
+        val db = PlaylistData.PlaylistDatabase.getDatabase(context)
+        val trackDao = db.trackDao()
+        return@withContext trackDao.getTracksFromAlbumArtist(albumArtist.album, albumArtist.artist)
+    }
+
+    fun saveBaseDir(context: Context, uri: Uri) {
+        val sharedPreferences = context.getSharedPreferences(SAVE_NAME, Context.MODE_PRIVATE)
+        with (sharedPreferences.edit()) {
+            putString(SAVE_KEY_BASEDIR, uri.toString())
+            apply()
+        }
+    }
+
+    private fun loadBaseDir(context: Context) : Uri {
+        val sharedPreferences = context.getSharedPreferences(SAVE_NAME, Context.MODE_PRIVATE)
+        val uriString = sharedPreferences.getString(SAVE_KEY_BASEDIR, "") ?: ""
+        return if(uriString != "") uriString.toUri() else Uri.EMPTY
+    }
+
+    suspend fun savePlaylistToFile(context: Context, tracks: Array<PlaylistData.Track>, filename: String = "MyPlaylist") = withContext(Dispatchers.Default) {
+        val baseDir = loadBaseDir(context)
+        try {
+            val dFile = DocumentFile.fromTreeUri(context, baseDir) ?: return@withContext
+            var playlistFile: DocumentFile
+            run fileSearch@ {
+                dFile.listFiles().forEach { file ->
+                    val dFileName = file.name?.split(".")?.first() ?: return@forEach
+                    if(dFileName != filename || file.type != MIME_TYPE) return@forEach
+                    playlistFile = file
+                    return@fileSearch
+                }
+                playlistFile = dFile.createFile(MIME_TYPE, filename) ?: return@withContext
+            }
+            context.contentResolver.openFileDescriptor(playlistFile.uri, "wt")?.use {
+                FileOutputStream(it.fileDescriptor).use { file ->
+                    file.write("#EXTM3U\n".toByteArray())
+                    tracks.forEach { track ->
+                        val relativePath = track.uri.toUri().path?.replace("${baseDir.path}/", "") ?: return@forEach
+                        file.write("#EXTINF:\n$relativePath\n".toByteArray())
+                    }
+                }
+            }
+        }
+        catch (err: Error) {
+            debugLog("Uh Oh, Big Stinky")
+        }
+    }
+
+    suspend fun loadPlaylistFromFile(context: Context, filename: String = "MyPlaylist") : Array<PlaylistData.Track>? = withContext(Dispatchers.Default) {
+        val db = PlaylistData.PlaylistDatabase.getDatabase(context)
+        val trackDao = db.trackDao()
+        val baseDir = loadBaseDir(context)
+        try {
+            val dFile = DocumentFile.fromTreeUri(context, baseDir) ?: return@withContext null
+            var playlistFile: DocumentFile
+            run fileSearch@ {
+                dFile.listFiles().forEach { file ->
+                    val dFileName = file.name?.split(".")?.first() ?: return@forEach
+                    if(dFileName != filename || file.type != MIME_TYPE) return@forEach
+                    playlistFile = file
+                    return@fileSearch
+                }
+                return@withContext null
+            }
+            val list: MutableList<PlaylistData.Track> = mutableListOf()
+            context.contentResolver.openFileDescriptor(playlistFile.uri, "r")?.use {
+                FileInputStream(it.fileDescriptor).use { file ->
+                    file.bufferedReader().use { reader ->
+                        var line: String? = reader.readLine()
+                        while (line != null) {
+                            if(line[0] != '#') {
+                                val track = trackDao.getTrackFromPath("%${line}%")
+                                list.add(track)
+                            }
+                            line = reader.readLine()
+                        }
+                    }
+                }
+            }
+            return@withContext list.toTypedArray()
+        }
+        catch (err: Error) {
+            debugLog("Uh Oh, Big Stinky")
+            return@withContext null
+        }
+    }
 }
 
 class PlaylistData {
@@ -143,7 +237,8 @@ class PlaylistData {
     @Entity
     data class Uri(
         @PrimaryKey()
-        val uri: String
+        val uri: String,
+        val path: String
     )
 
     @Database(entities = [Track::class, AlbumArtist::class, Uri::class], version = 1)
@@ -167,30 +262,12 @@ class PlaylistData {
             }
         }
     }
-    /*
-    data class AlbumWithTracks(
-        @Embedded val album: AlbumArtist,
-        @Relation(
-            parentColumn = "albumArtistId",
-            entityColumn = "trackAlbumArtistId"
-        )
-        val tracks: List<Track>
-    )
 
-    data class UriWithTracks(
-        @Embedded val uri: Uri,
-        @Relation(
-            parentColumn = "uriId",
-            entityColumn = "trackUriId"
-        )
-        val tracks: List<Track>
-    )
-    */
     @Dao
     interface AlbumArtistDao {
         @Insert
         fun insert(vararg albums: AlbumArtist)
-        @Query("SELECT * FROM albumartist")
+        @Query("SELECT * FROM albumartist ORDER BY artist ASC")
         fun selectAll() : LiveData<Array<AlbumArtist>>
 
     }
@@ -203,6 +280,10 @@ class PlaylistData {
         fun selectAll() : LiveData<Array<Track>>
         @Query("SELECT * FROM track WHERE album LIKE :album AND artist LIKE :artist LIMIT 1")
         fun getTopTrackFromAlbumArtist(album: String, artist: String) : Track
+        @Query("SELECT * FROM track WHERE album LIKE :album AND artist LIKE :artist ORDER BY discNum, trackNum")
+        fun getTracksFromAlbumArtist(album: String, artist: String) : LiveData<Array<Track>>
+        @Query("SELECT trackId, title, trackNum, discNum, album, artist, Track.uri FROM Track INNER JOIN Uri U ON Track.uri = U.uri WHERE path LIKE :path")
+        fun getTrackFromPath(path: String) : Track
     }
 
     @Dao
