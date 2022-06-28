@@ -1,50 +1,44 @@
 package com.kuraiji.speedyplaylistcreator.ui.pages
 
+import android.app.Activity.RESULT_OK
+import android.content.Intent
 import android.content.res.Configuration
-import android.graphics.Bitmap
+import android.os.Build
+import android.provider.DocumentsContract
+import android.view.View
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.foundation.Image
 import androidx.compose.material3.*
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.kuraiji.speedyplaylistcreator.R
 import com.kuraiji.speedyplaylistcreator.common.debugLog
+
 import com.kuraiji.speedyplaylistcreator.data.PlaylistData
-import com.kuraiji.speedyplaylistcreator.data.PlaylistManager
 import com.kuraiji.speedyplaylistcreator.domain.MainViewModel
 import com.kuraiji.speedyplaylistcreator.domain.MainViewModel.ViewKeys
-import com.kuraiji.speedyplaylistcreator.ui.MainActivity
 import com.kuraiji.speedyplaylistcreator.ui.components.AlbumTile
+import com.kuraiji.speedyplaylistcreator.ui.components.BottomNavBar
 import com.kuraiji.speedyplaylistcreator.ui.components.TrackItem
+import com.kuraiji.speedyplaylistcreator.ui.theme.SpeedyPlaylistCreatorTheme
+import com.kuraiji.speedyplaylistcreator.ui.views.AlbumView
+import com.kuraiji.speedyplaylistcreator.ui.views.PlaylistView
+import com.kuraiji.speedyplaylistcreator.ui.views.TrackView
 
 import com.ramcosta.composedestinations.navigation.DestinationsNavigator
 import com.ramcosta.composedestinations.annotation.Destination
-
-import com.kuraiji.speedyplaylistcreator.ui.theme.SpeedyPlaylistCreatorTheme
-import kotlinx.coroutines.launch
-
 
 @Preview(showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES, name = "Album Dark Mode")
 @Preview(showBackground = true, name = "Album Light Mode")
@@ -138,37 +132,77 @@ fun Main(
     navigator: DestinationsNavigator,
     viewModel: MainViewModel = viewModel(),
 ) {
+    val createFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if(result.resultCode != RESULT_OK) return@rememberLauncherForActivityResult
+        debugLog(result.data.toString())
+    }
+    val openFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if(result.resultCode != RESULT_OK) return@rememberLauncherForActivityResult
+        debugLog(result.data.toString())
+    }
     val (selectedAlbum, setSelectedAlbum) = remember {
         mutableStateOf(PlaylistData.AlbumArtist("",""))
     }
-    val currentView = viewModel.currentView.observeAsState()
+    val currentView = viewModel.currentView
     val albumViewCallback: (PlaylistData.AlbumArtist) -> Unit = { albumArtist ->
         setSelectedAlbum(albumArtist)
-        viewModel.currentView.value = ViewKeys.VIEW_KEY_TRACK
+        viewModel.goToView(ViewKeys.VIEW_KEY_TRACK)
     }
     val trackViewCallback: (PlaylistData.Track) -> Unit = { track ->
         viewModel.toggleAddToPlaylist(track)
     }
-    BackHandler(enabled = true) {viewModel.currentView.value = ViewKeys.VIEW_KEY_ALBUM}
+    val savePlaylistCallback: () -> Unit = {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            createFileLauncher.launch(Intent(Intent.ACTION_CREATE_DOCUMENT)
+                .setType("audio/x-mpegurl")
+                .putExtra(DocumentsContract.EXTRA_INITIAL_URI, viewModel.baseDirUri.toString())
+            )
+        }
+        else {
+            createFileLauncher.launch(Intent(Intent.ACTION_CREATE_DOCUMENT)
+                .setType("audio/x-mpegurl")
+            )
+        }
+    }
+    val loadPlaylistCallback: () -> Unit = {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            openFileLauncher.launch(Intent(Intent.ACTION_OPEN_DOCUMENT)
+                .setType("audio/x-mpegurl")
+                .putExtra(DocumentsContract.EXTRA_INITIAL_URI, viewModel.baseDirUri.toString())
+            )
+        }
+        else {
+            openFileLauncher.launch(Intent(Intent.ACTION_OPEN_DOCUMENT)
+                .setType("audio/x-mpegurl")
+            )
+        }
+    }
+    val removeTrackCallback: (PlaylistData.Track) -> Unit = { track ->
+        viewModel.removeFromPlaylist(track)
+    }
+    BackHandler(enabled = true) {
+        viewModel.goBack()
+    }
     SpeedyPlaylistCreatorTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
             Scaffold(
-                bottomBar = {BottomAppBar() {
-                        IconButton(onClick = {viewModel.savePlaylist()}) {
-                            Icon(painterResource(id = R.drawable.ic_launcher_foreground), contentDescription = "Test")
-                        }
-                        IconButton(onClick = {viewModel.loadPlaylist()}) {
-                            Icon(painterResource(id = R.drawable.ic_launcher_foreground), contentDescription = "Test")
-                        }
-                    }}
-            ) { paddingValues ->
+                bottomBar = { BottomNavBar(
+                    albumCallback = { viewModel.goToView(ViewKeys.VIEW_KEY_ALBUM) },
+                    playlistCallback = { viewModel.goToView(ViewKeys.VIEW_KEY_PLAYLIST) },
+                    settingsCallback = { viewModel.goToView(ViewKeys.VIEW_KEY_SETTINGS) })
+                }) { paddingValues ->
                 Box(modifier = Modifier.padding(paddingValues)) {
                     when(currentView.value) {
                         0 -> AlbumView(navigator, viewModel, albumViewCallback)
                         1 -> TrackView(navigator, viewModel, selectedAlbum, trackViewCallback)
+                        2 -> PlaylistView(navigator, viewModel, savePlaylistCallback, loadPlaylistCallback, removeTrackCallback)
                     }
                 }
             }
@@ -176,107 +210,5 @@ fun Main(
     }
 }
 
-@Composable
-fun AlbumView(
-    navigator: DestinationsNavigator? = null,
-    viewModel: MainViewModel = viewModel(),
-    callback: (PlaylistData.AlbumArtist) -> Unit
-) {
-    //val context = LocalContext.current
-    val albumState = viewModel.albums.observeAsState()
-    //val trackState = viewModel.tracks.observeAsState()
 
-    if(albumState.value != null) {
-        LazyVerticalGrid(GridCells.Fixed(3)) {
-            items(albumState.value!!,
-                key = {item: PlaylistData.AlbumArtist ->  "${item.album}${item.artist}"})
-            { item: PlaylistData.AlbumArtist ->
-                AlbumTile(
-                    albumArtist = item,
-                    modifier = Modifier
-                        .padding(0.dp)
-                        .aspectRatio(1F)
-                        .clickable { callback(item) }
-                )
-            }
-        }
-    }
-}
 
-@Composable
-fun TrackView(
-    navigator: DestinationsNavigator?,
-    viewModel: MainViewModel = viewModel(),
-    albumArtist: PlaylistData.AlbumArtist,
-    callback: (PlaylistData.Track) -> Unit
-){
-    val context = LocalContext.current
-    val vw = LocalConfiguration.current.screenWidthDp
-    val vh = LocalConfiguration.current.screenHeightDp
-    val (tracks, setTracks) = remember { mutableStateOf<Array<PlaylistData.Track>?>(null) }
-    val (bitmap, setBitmap) = remember { mutableStateOf<Bitmap?>(null)}
-    LaunchedEffect(key1 = albumArtist) {
-        launch {
-            PlaylistManager.getAlbumTracks(context, albumArtist).observe(context as MainActivity) { tracks ->
-                setTracks(tracks)
-            }
-            setBitmap(PlaylistManager.getAlbumCover(context, albumArtist))
-        }
-    }
-
-    Column {
-        Column(
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .width(vw.dp)
-                .padding(vertical = (vh * .05).dp)
-        ) {
-            if(bitmap == null) {
-                Box(modifier = Modifier
-                    .requiredSize((vw * .50).dp)
-                    .background(MaterialTheme.colorScheme.error)
-                )
-            }
-            if(bitmap != null) {
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = "Cover Art",
-                    modifier = Modifier.requiredSize((vw * .50).dp),
-                    contentScale = ContentScale.FillBounds
-                )
-            }
-            Text(
-                text = albumArtist.album,
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(vertical = 5.dp),
-                textAlign = TextAlign.Center
-            )
-            Text(
-                text = albumArtist.artist,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(vertical = 0.dp),
-                textAlign = TextAlign.Center
-            )
-        }
-        Spacer(modifier = Modifier.padding())
-        if(tracks != null) {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                items(tracks, key = {track -> track.uri}) { track: PlaylistData.Track ->
-                    TrackItem(track = track, modifier = Modifier
-                        .clickable { callback(track) }
-                        .background(
-                            if(viewModel.playlist.containsKey(track.uri))
-                                MaterialTheme.colorScheme.surfaceTint
-                            else
-                                MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    )
-                }
-            }
-        }
-    }
-
-}

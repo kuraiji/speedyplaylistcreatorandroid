@@ -140,7 +140,7 @@ object PlaylistManager {
         }
     }
 
-    private fun loadBaseDir(context: Context) : Uri {
+    fun loadBaseDir(context: Context) : Uri {
         val sharedPreferences = context.getSharedPreferences(SAVE_NAME, Context.MODE_PRIVATE)
         val uriString = sharedPreferences.getString(SAVE_KEY_BASEDIR, "") ?: ""
         return if(uriString != "") uriString.toUri() else Uri.EMPTY
