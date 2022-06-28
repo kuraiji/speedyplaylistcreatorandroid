@@ -1,6 +1,7 @@
 package com.kuraiji.speedyplaylistcreator.data
 
 import android.content.Context
+import android.content.Intent
 import android.database.sqlite.SQLiteConstraintException
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -26,9 +27,10 @@ private const val SAVE_KEY_BASEDIR = "baseDir"
 private const val MIME_TYPE = "audio/x-mpegurl"
 
 object PlaylistManager {
-    fun wipeDatabase(context: Context) {
+    suspend fun isDatabaseEmpty(context: Context) : Boolean = withContext(Dispatchers.Default) {
         val db = PlaylistData.PlaylistDatabase.getDatabase(context)
-        db.clearAllTables()
+        if(db.uriDao().selectAll().isEmpty()) return@withContext true
+        return@withContext false
     }
 
     fun storeUris(uris: ArrayList<Uri>, context: Context) {
@@ -193,7 +195,7 @@ object PlaylistManager {
 }
 
 class PlaylistData {
-    @Entity
+    @Entity(indices = [Index(value = ["uri"], unique = true)])
     data class Track(
         @PrimaryKey(autoGenerate = true)
         val trackId: Long,

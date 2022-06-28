@@ -35,6 +35,7 @@ import com.kuraiji.speedyplaylistcreator.domain.LandingViewModel
 import com.kuraiji.speedyplaylistcreator.domain.WorkerKeys
 import com.kuraiji.speedyplaylistcreator.ui.MainActivity
 import com.kuraiji.speedyplaylistcreator.ui.pages.destinations.MainDestination
+import kotlinx.coroutines.launch
 
 internal const val WORKNAME = "scan"
 
@@ -87,8 +88,6 @@ fun LandingDestination(
     }
 }
 
-//TODO: Rework Landing Page to be way less buggy and retain db data when closing and opening
-
 @Composable
 fun LandingPage(
     navigator: DestinationsNavigator? = null,
@@ -101,6 +100,9 @@ fun LandingPage(
     val (trackAmt, setTrackAmt) = remember { mutableStateOf(0) }
     LaunchedEffect(key1 = null) {
         workManager.pruneWork()
+        launch {
+            if(!PlaylistManager.isDatabaseEmpty(context)) navigator?.navigate(MainDestination())
+        }
     }
     workManager.getWorkInfosForUniqueWorkLiveData(WORKNAME).observe(context as MainActivity) { workInfoList ->
         if(workInfoList == null || workInfoList.size < 1) return@observe
@@ -117,6 +119,7 @@ fun LandingPage(
         }
         it.data?.also { uri ->
             uri.data?.let { iUri ->
+                context.contentResolver.takePersistableUriPermission(iUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 DocumentFile.fromTreeUri(context, iUri)
                 ?.let { dFile ->
                     PlaylistManager.saveBaseDir(context, dFile.uri)
@@ -152,11 +155,13 @@ fun LandingPage(
         Button(
             onClick = {
                 viewModel.started.value = true
-                openDirectoryLauncher.launch(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE))
+                openDirectoryLauncher.launch(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION and Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+                )
                       },
             enabled = state != WorkInfo.State.RUNNING && trackAmt < 1
             ) {
-            Text(text = "Select Directory")
+            Text(text = if(state != WorkInfo.State.RUNNING && trackAmt < 1) "Select Directory" else "Scanning... Please Wait")
         }
     }
 }

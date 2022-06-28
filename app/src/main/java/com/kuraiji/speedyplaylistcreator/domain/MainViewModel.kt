@@ -32,7 +32,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _albumIndex = mutableStateOf(0)
     val albumIndex: State<Int> = _albumIndex
     private val _albumoffset = mutableStateOf(0)
-    val albumoffset: State<Int> = _albumIndex
+    val albumoffset: State<Int> = _albumoffset
 
     private val _playlist = mutableStateMapOf<String, Pair<PlaylistData.Track, Long>>()
     private val _playlistIndex = mutableStateOf<Long>(0)
