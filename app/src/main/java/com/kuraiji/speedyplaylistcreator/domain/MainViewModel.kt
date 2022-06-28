@@ -29,6 +29,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _navigation = mutableStateListOf<Short>(0)
 
     val albums = PlaylistData.PlaylistDatabase.getDatabase(application).albumArtistDao().selectAll()
+    private val _albumIndex = mutableStateOf(0)
+    val albumIndex: State<Int> = _albumIndex
+    private val _albumoffset = mutableStateOf(0)
+    val albumoffset: State<Int> = _albumIndex
 
     private val _playlist = mutableStateMapOf<String, Pair<PlaylistData.Track, Long>>()
     private val _playlistIndex = mutableStateOf<Long>(0)
@@ -43,20 +47,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun savePlaylist(fileUri: Uri) {
         viewModelScope.launch {
-            //val trackList = _playlist.values.toMutableList()
-            //trackList.sortBy { it.second }
-            //PlaylistManager.savePlaylistToFile(getApplication(), trackList.splitPair().toTypedArray())
-
+            val trackList = _playlist.values.toMutableList()
+            trackList.sortBy { it.second }
+            PlaylistManager.savePlaylistToFile(getApplication(), trackList.splitPair().toTypedArray(), fileUri)
         }
     }
     fun loadPlaylist(fileUri: Uri) {
         viewModelScope.launch {
-            //val loadedTracks = PlaylistManager.loadPlaylistFromFile(getApplication()) ?: return@launch
-            //_playlist.clear()
-            //_playlistIndex.value = 0
-            //loadedTracks.forEach { track ->
-                //addToPlaylist(track)
-            //}
+            val loadedTracks = PlaylistManager.loadPlaylistFromFile(getApplication(), fileUri) ?: return@launch
+            _playlist.clear()
+            _playlistIndex.value = 0
+            loadedTracks.forEach { track ->
+                addToPlaylist(track)
+            }
         }
     }
 
@@ -140,5 +143,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if(_navigation.last() == VIEW_KEY_ALBUM.toShort()) return
         _navigation.removeLastOrNull()
         _currentView.value = _navigation.last().toInt()
+    }
+
+    fun setAlbumIndex(index: Int, offset: Int) {
+        _albumIndex.value = index
+        _albumoffset.value = offset
     }
 }

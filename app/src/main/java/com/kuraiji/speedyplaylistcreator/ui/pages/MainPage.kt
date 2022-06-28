@@ -136,19 +136,22 @@ fun Main(
         contract = ActivityResultContracts.StartActivityForResult(),
     ) { result ->
         if(result.resultCode != RESULT_OK) return@rememberLauncherForActivityResult
-        debugLog(result.data.toString())
+        val uri = result.data?.data ?: return@rememberLauncherForActivityResult
+        viewModel.savePlaylist(uri)
     }
     val openFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if(result.resultCode != RESULT_OK) return@rememberLauncherForActivityResult
-        debugLog(result.data.toString())
+        val uri = result.data?.data ?: return@rememberLauncherForActivityResult
+        viewModel.loadPlaylist(uri)
     }
     val (selectedAlbum, setSelectedAlbum) = remember {
         mutableStateOf(PlaylistData.AlbumArtist("",""))
     }
     val currentView = viewModel.currentView
-    val albumViewCallback: (PlaylistData.AlbumArtist) -> Unit = { albumArtist ->
+    val albumViewCallback: (PlaylistData.AlbumArtist, Pair<Int, Int>) -> Unit = { albumArtist, index ->
+        viewModel.setAlbumIndex(index.first, index.second)
         setSelectedAlbum(albumArtist)
         viewModel.goToView(ViewKeys.VIEW_KEY_TRACK)
     }

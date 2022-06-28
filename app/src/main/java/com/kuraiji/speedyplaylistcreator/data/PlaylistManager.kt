@@ -146,21 +146,10 @@ object PlaylistManager {
         return if(uriString != "") uriString.toUri() else Uri.EMPTY
     }
 
-    suspend fun savePlaylistToFile(context: Context, tracks: Array<PlaylistData.Track>, filename: String = "MyPlaylist") = withContext(Dispatchers.Default) {
+    suspend fun savePlaylistToFile(context: Context, tracks: Array<PlaylistData.Track>, fileUri: Uri) = withContext(Dispatchers.Default) {
         val baseDir = loadBaseDir(context)
         try {
-            val dFile = DocumentFile.fromTreeUri(context, baseDir) ?: return@withContext
-            var playlistFile: DocumentFile
-            run fileSearch@ {
-                dFile.listFiles().forEach { file ->
-                    val dFileName = file.name?.split(".")?.first() ?: return@forEach
-                    if(dFileName != filename || file.type != MIME_TYPE) return@forEach
-                    playlistFile = file
-                    return@fileSearch
-                }
-                playlistFile = dFile.createFile(MIME_TYPE, filename) ?: return@withContext
-            }
-            context.contentResolver.openFileDescriptor(playlistFile.uri, "wt")?.use {
+            context.contentResolver.openFileDescriptor(fileUri, "wt")?.use {
                 FileOutputStream(it.fileDescriptor).use { file ->
                     file.write("#EXTM3U\n".toByteArray())
                     tracks.forEach { track ->
@@ -175,24 +164,12 @@ object PlaylistManager {
         }
     }
 
-    suspend fun loadPlaylistFromFile(context: Context, filename: String = "MyPlaylist") : Array<PlaylistData.Track>? = withContext(Dispatchers.Default) {
+    suspend fun loadPlaylistFromFile(context: Context, fileUri: Uri) : Array<PlaylistData.Track>? = withContext(Dispatchers.Default) {
         val db = PlaylistData.PlaylistDatabase.getDatabase(context)
         val trackDao = db.trackDao()
-        val baseDir = loadBaseDir(context)
         try {
-            val dFile = DocumentFile.fromTreeUri(context, baseDir) ?: return@withContext null
-            var playlistFile: DocumentFile
-            run fileSearch@ {
-                dFile.listFiles().forEach { file ->
-                    val dFileName = file.name?.split(".")?.first() ?: return@forEach
-                    if(dFileName != filename || file.type != MIME_TYPE) return@forEach
-                    playlistFile = file
-                    return@fileSearch
-                }
-                return@withContext null
-            }
             val list: MutableList<PlaylistData.Track> = mutableListOf()
-            context.contentResolver.openFileDescriptor(playlistFile.uri, "r")?.use {
+            context.contentResolver.openFileDescriptor(fileUri, "r")?.use {
                 FileInputStream(it.fileDescriptor).use { file ->
                     file.bufferedReader().use { reader ->
                         var line: String? = reader.readLine()

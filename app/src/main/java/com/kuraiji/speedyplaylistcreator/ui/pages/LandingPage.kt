@@ -87,6 +87,8 @@ fun LandingDestination(
     }
 }
 
+//TODO: Rework Landing Page to be way less buggy and retain db data when closing and opening
+
 @Composable
 fun LandingPage(
     navigator: DestinationsNavigator? = null,
