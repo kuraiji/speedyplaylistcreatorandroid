@@ -7,8 +7,6 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.media.MediaMetadataRetriever
-import android.media.MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST
-import android.media.MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import androidx.room.*
@@ -16,7 +14,6 @@ import androidx.lifecycle.LiveData
 import com.kuraiji.speedyplaylistcreator.common.debugLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import wseemann.media.FFmpegMediaMetadataRetriever
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.lang.RuntimeException
@@ -51,8 +48,7 @@ object PlaylistManager {
         val albumDao = db.albumArtistDao()
         uriDao.selectAll().clone().forEachIndexed { index, row ->
             val uri = row.uri.toUri()
-            //val mmr = MediaMetadataRetriever()
-            val mmr = FFmpegMediaMetadataRetriever()
+            val mmr = MediaMetadataRetriever()
             try {
                 mmr.setDataSource(context, uri)
             }
@@ -61,18 +57,12 @@ object PlaylistManager {
                 uriDao.deleteUris(row)
                 return@forEachIndexed
             }
-            /*val trackName: String = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: ""
+            val trackName: String = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: ""
             var trackNum = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER) ?: ""
             var discNum = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DISC_NUMBER) ?: ""
             val album = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM) ?: ""
             val artist = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST) ?:
-                mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: ""*/
-            val trackName: String = mmr.extractMetadata(FFmpegMediaMetadataRetriever.METADATA_KEY_TITLE) ?: ""
-            var trackNum = mmr.extractMetadata(FFmpegMediaMetadataRetriever.METADATA_KEY_TRACK) ?: ""
-            var discNum = mmr.extractMetadata(FFmpegMediaMetadataRetriever.METADATA_KEY_DISC) ?: ""
-            val album = mmr.extractMetadata(FFmpegMediaMetadataRetriever.METADATA_KEY_ALBUM) ?: ""
-            val artist = mmr.extractMetadata(FFmpegMediaMetadataRetriever.METADATA_KEY_ALBUM_ARTIST) ?:
-            mmr.extractMetadata(FFmpegMediaMetadataRetriever.METADATA_KEY_ARTIST) ?: ""
+                mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: ""
             trackNum = trackNum.filter { it.isDigit() }
             discNum = discNum.filter { it.isDigit() }
             try {
@@ -96,8 +86,7 @@ object PlaylistManager {
             }
             catch (err: SQLiteConstraintException) { }
             try {
-                //mmr.close()
-                mmr.release()
+                mmr.close()
             }
             catch (err: NoSuchMethodError) {
                 mmr.release()
@@ -171,7 +160,6 @@ object PlaylistManager {
     }
 
     fun setInitialScan(context: Context, state: Boolean) {
-        //val sharedPreferences = context.getSharedPreferences(SAVE_NAME, Context.MODE_PRIVATE)
         val sharedPreferences = PlaylistData.PlaylistDatabase.getSharedPreference(context)
         with (sharedPreferences.edit()) {
             putBoolean(SAVE_KEY_INITIALLOAD, state)
@@ -180,7 +168,6 @@ object PlaylistManager {
     }
 
     fun getInitialScan(context: Context) : Boolean {
-        //val sharedPreferences = context.get
         val sharedPreferences = PlaylistData.PlaylistDatabase.getSharedPreference(context)
         return sharedPreferences.getBoolean(SAVE_KEY_INITIALLOAD, false)
     }
