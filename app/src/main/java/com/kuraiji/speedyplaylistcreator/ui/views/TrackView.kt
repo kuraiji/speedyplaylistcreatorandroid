@@ -39,16 +39,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun MainTrackPreview() {
     val tracks: Array<PlaylistData.Track> = arrayOf(
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
+        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", "", ""),
     )
     val vw = LocalConfiguration.current.screenWidthDp
     val vh = LocalConfiguration.current.screenHeightDp

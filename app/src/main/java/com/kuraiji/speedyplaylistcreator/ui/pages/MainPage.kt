@@ -41,6 +41,7 @@ import com.ramcosta.composedestinations.navigation.DestinationsNavigator
 import com.ramcosta.composedestinations.annotation.Destination
 
 val MIME_TYPE = "audio/mpegurl"
+val MIME_TYPES = arrayOf("audio/mpegurl", "audio/x-mpegurl")
 
 @Preview(showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES, name = "Album Dark Mode")
 @Preview(showBackground = true, name = "Album Light Mode")
@@ -108,25 +109,29 @@ fun Main(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             createFileLauncher.launch(Intent(Intent.ACTION_CREATE_DOCUMENT)
                 .setType(MIME_TYPE)
+                .putExtra(Intent.EXTRA_MIME_TYPES, MIME_TYPES)
                 .putExtra(DocumentsContract.EXTRA_INITIAL_URI, viewModel.baseDirUri.toString())
             )
         }
         else {
             createFileLauncher.launch(Intent(Intent.ACTION_CREATE_DOCUMENT)
                 .setType(MIME_TYPE)
+                .putExtra(Intent.EXTRA_MIME_TYPES, MIME_TYPES)
             )
         }
     }
     val loadPlaylistCallback: () -> Unit = {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             openFileLauncher.launch(Intent(Intent.ACTION_OPEN_DOCUMENT)
-                .setType(MIME_TYPE)
                 .putExtra(DocumentsContract.EXTRA_INITIAL_URI, viewModel.baseDirUri.toString())
+                .setType("*/*")
+                .putExtra(Intent.EXTRA_MIME_TYPES, MIME_TYPES)
             )
         }
         else {
             openFileLauncher.launch(Intent(Intent.ACTION_OPEN_DOCUMENT)
-                .setType(MIME_TYPE)
+                .setType("*/*")
+                .putExtra(Intent.EXTRA_MIME_TYPES, MIME_TYPES)
             )
         }
     }

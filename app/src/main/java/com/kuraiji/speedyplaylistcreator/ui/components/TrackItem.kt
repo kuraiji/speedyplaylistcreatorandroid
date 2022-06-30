@@ -25,16 +25,7 @@ import com.kuraiji.speedyplaylistcreator.ui.theme.SpeedyPlaylistCreatorTheme
 @Composable
 fun TrackItemPreview() {
     val tracks: Array<PlaylistData.Track> = arrayOf(
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
+        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", "", ""),
     )
     SpeedyPlaylistCreatorTheme(dynamicColor = false) {
         Surface(

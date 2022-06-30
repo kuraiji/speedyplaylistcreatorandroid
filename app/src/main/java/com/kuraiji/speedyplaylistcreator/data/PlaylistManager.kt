@@ -7,6 +7,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.media.MediaMetadataRetriever
+import android.media.MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST
+import android.media.MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import androidx.room.*
@@ -14,6 +16,7 @@ import androidx.lifecycle.LiveData
 import com.kuraiji.speedyplaylistcreator.common.debugLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import wseemann.media.FFmpegMediaMetadataRetriever
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.lang.RuntimeException
@@ -48,7 +51,8 @@ object PlaylistManager {
         val albumDao = db.albumArtistDao()
         uriDao.selectAll().clone().forEachIndexed { index, row ->
             val uri = row.uri.toUri()
-            val mmr = MediaMetadataRetriever()
+            //val mmr = MediaMetadataRetriever()
+            val mmr = FFmpegMediaMetadataRetriever()
             try {
                 mmr.setDataSource(context, uri)
             }
@@ -57,12 +61,18 @@ object PlaylistManager {
                 uriDao.deleteUris(row)
                 return@forEachIndexed
             }
-            val trackName: String = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: ""
+            /*val trackName: String = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: ""
             var trackNum = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER) ?: ""
             var discNum = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DISC_NUMBER) ?: ""
             val album = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM) ?: ""
             val artist = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST) ?:
-                mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: ""
+                mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: ""*/
+            val trackName: String = mmr.extractMetadata(FFmpegMediaMetadataRetriever.METADATA_KEY_TITLE) ?: ""
+            var trackNum = mmr.extractMetadata(FFmpegMediaMetadataRetriever.METADATA_KEY_TRACK) ?: ""
+            var discNum = mmr.extractMetadata(FFmpegMediaMetadataRetriever.METADATA_KEY_DISC) ?: ""
+            val album = mmr.extractMetadata(FFmpegMediaMetadataRetriever.METADATA_KEY_ALBUM) ?: ""
+            val artist = mmr.extractMetadata(FFmpegMediaMetadataRetriever.METADATA_KEY_ALBUM_ARTIST) ?:
+            mmr.extractMetadata(FFmpegMediaMetadataRetriever.METADATA_KEY_ARTIST) ?: ""
             trackNum = trackNum.filter { it.isDigit() }
             discNum = discNum.filter { it.isDigit() }
             try {
@@ -73,7 +83,8 @@ object PlaylistManager {
                     if(discNum != "") discNum.toInt() else 0,
                     album,
                     artist,
-                    row.uri
+                    row.uri,
+                    row.path
                 ))
             }
             catch(err: SQLiteConstraintException) { }
@@ -85,7 +96,8 @@ object PlaylistManager {
             }
             catch (err: SQLiteConstraintException) { }
             try {
-                mmr.close()
+                //mmr.close()
+                mmr.release()
             }
             catch (err: NoSuchMethodError) {
                 mmr.release()
@@ -145,7 +157,6 @@ object PlaylistManager {
     }
 
     fun saveBaseDir(context: Context, uri: Uri) {
-        //val sharedPreferences = context.getSharedPreferences(SAVE_NAME, Context.MODE_PRIVATE)
         val sharedPreferences = PlaylistData.PlaylistDatabase.getSharedPreference(context)
         with (sharedPreferences.edit()) {
             putString(SAVE_KEY_BASEDIR, uri.toString())
@@ -154,7 +165,6 @@ object PlaylistManager {
     }
 
     fun loadBaseDir(context: Context) : Uri {
-        //val sharedPreferences = context.getSharedPreferences(SAVE_NAME, Context.MODE_PRIVATE)
         val sharedPreferences = PlaylistData.PlaylistDatabase.getSharedPreference(context)
         val uriString = sharedPreferences.getString(SAVE_KEY_BASEDIR, "") ?: ""
         return if(uriString != "") uriString.toUri() else Uri.EMPTY
@@ -231,7 +241,8 @@ class PlaylistData {
         val discNum: Int,
         val album: String,
         val artist: String,
-        val uri: String
+        val uri: String,
+        val path: String
     )
 
     @Entity(primaryKeys = ["album", "artist"])
@@ -299,7 +310,7 @@ class PlaylistData {
         fun getTopTrackFromAlbumArtist(album: String, artist: String) : Track
         @Query("SELECT * FROM track WHERE album LIKE :album AND artist LIKE :artist ORDER BY discNum, trackNum")
         fun getTracksFromAlbumArtist(album: String, artist: String) : LiveData<Array<Track>>
-        @Query("SELECT trackId, title, trackNum, discNum, album, artist, Track.uri FROM Track INNER JOIN Uri U ON Track.uri = U.uri WHERE path LIKE :path")
+        @Query("SELECT * FROM track WHERE path LIKE :path")
         fun getTrackFromPath(path: String) : Track
     }
 

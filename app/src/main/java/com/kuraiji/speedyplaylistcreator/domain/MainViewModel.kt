@@ -13,7 +13,6 @@ import com.kuraiji.speedyplaylistcreator.common.debugLog
 import com.kuraiji.speedyplaylistcreator.common.splitPair
 import com.kuraiji.speedyplaylistcreator.data.PlaylistData
 import com.kuraiji.speedyplaylistcreator.data.PlaylistManager
-import com.kuraiji.speedyplaylistcreator.ui.MainActivity
 import kotlinx.coroutines.launch
 
 private const val WORKNAME = "index"
@@ -25,23 +24,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         const val VIEW_KEY_PLAYLIST: Int = 2
         const val VIEW_KEY_SETTINGS: Int = 3
     }
-    //private val _currentView = MutableLiveData(VIEW_KEY_ALBUM)
     private val _currentView = mutableStateOf(VIEW_KEY_ALBUM)
     val currentView: State<Int> = _currentView
     private val _navigation = mutableStateListOf<Short>(0)
 
-    val albums = PlaylistData.PlaylistDatabase.getDatabase(application).albumArtistDao().selectAll()
     private val _albumIndex = mutableStateOf(0)
     val albumIndex: State<Int> = _albumIndex
     private val _albumoffset = mutableStateOf(0)
     val albumoffset: State<Int> = _albumoffset
-
-    private val testAlbums = mutableStateListOf<PlaylistData.AlbumArtist>()
-    val testAl: List<PlaylistData.AlbumArtist> = testAlbums
+    private val _albums = mutableStateListOf<PlaylistData.AlbumArtist>()
+    val albums: List<PlaylistData.AlbumArtist> = _albums
 
     private val _playlist = mutableStateMapOf<String, Pair<PlaylistData.Track, Long>>()
     private val _playlistIndex = mutableStateOf<Long>(0)
     val playlist: Map<String, Pair<PlaylistData.Track, Long>> = _playlist
+    val blockPlaylist = mutableStateOf(false)
 
     private val _baseDirUri = mutableStateOf(PlaylistManager.loadBaseDir(getApplication()))
     val baseDirUri: State<Uri> = _baseDirUri
@@ -50,9 +47,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         fullIndex()
         viewModelScope.launch {
             PlaylistData.PlaylistDatabase.getDatabase(application).albumArtistDao().selectAll().observeForever { array ->
-                testAlbums.clear()
+                _albums.clear()
                 array.forEach { albumArtist ->
-                    testAlbums.add(albumArtist)
+                    _albums.add(albumArtist)
                 }
             }
         }
@@ -67,12 +64,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun loadPlaylist(fileUri: Uri) {
         viewModelScope.launch {
+            blockPlaylist.value = true
             val loadedTracks = PlaylistManager.loadPlaylistFromFile(getApplication(), fileUri) ?: return@launch
             _playlist.clear()
             _playlistIndex.value = 0
             loadedTracks.forEach { track ->
                 addToPlaylist(track)
             }
+            blockPlaylist.value = false
         }
     }
 
@@ -161,5 +160,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setAlbumIndex(index: Int, offset: Int) {
         _albumIndex.value = index
         _albumoffset.value = offset
+    }
+
+    fun wipePlaylist() {
+        _playlist.clear()
     }
 }

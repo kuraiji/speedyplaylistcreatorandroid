@@ -2,12 +2,16 @@ package com.kuraiji.speedyplaylistcreator.ui.views
 
 import android.content.res.Configuration
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -29,14 +33,7 @@ import com.ramcosta.composedestinations.navigation.DestinationsNavigator
 @Composable
 fun MainAlbumPreview() {
     val tracks = arrayOf<PlaylistData.Track>(
-        PlaylistData.Track(0, "Metal Gear Solid Main Theme", 0, 0, "Metal Gear Solid Main Theme", "Konami", ""),
-        PlaylistData.Track(0, "Main Theme", 0, 0, "Metal Gear Solid", "Konami", ""),
-        PlaylistData.Track(0, "Main Theme", 0, 0, "Metal Gear Solid", "Konami", ""),
-        PlaylistData.Track(0, "Main Theme", 0, 0, "Metal Gear Solid", "Konami", ""),
-        PlaylistData.Track(0, "Main Theme", 0, 0, "Metal Gear Solid", "Konami", ""),
-        PlaylistData.Track(0, "Main Theme", 0, 0, "Metal Gear Solid", "Konami", ""),
-        PlaylistData.Track(0, "Main Theme", 0, 0, "Metal Gear Solid", "Konami", ""),
-        PlaylistData.Track(0, "Main Theme", 0, 0, "Metal Gear Solid", "Konami", ""),
+        PlaylistData.Track(0, "Metal Gear Solid Main Theme", 0, 0, "Metal Gear Solid Main Theme", "Konami", "", ""),
     )
 
     SpeedyPlaylistCreatorTheme(dynamicColor = false) {
@@ -99,11 +96,6 @@ fun MainAlbumPreview() {
     }
 }
 
-//TODO: Pressing delete button effect stays to the next element
-//TODO: When entering automatically position list to the bottom
-//TODO: Wipe list button
-//TODO: Block buttons when saving/loading playlist
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaylistView(
@@ -115,6 +107,11 @@ fun PlaylistView(
 ) {
     val tracks = viewModel.playlist.values.toMutableList().sortedBy { it.second }
     val vw = LocalConfiguration.current.screenWidthDp
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(key1 = null) {
+        listState.scrollToItem(tracks.size)
+    }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -131,16 +128,29 @@ fun PlaylistView(
                 .fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceAround
         ) {
-            Button(onClick = { saveCallback() }) {
+            Button(
+                onClick = { saveCallback() },
+                enabled = tracks.isNotEmpty() && !viewModel.blockPlaylist.value
+            ) {
                 Text(text = "SAVE")
             }
-            Button(onClick = { loadCallback() }) {
+            Button(
+                onClick = { loadCallback() },
+                enabled = !viewModel.blockPlaylist.value
+            ) {
                 Text(text = "LOAD")
+            }
+            Button(
+                onClick = { viewModel.wipePlaylist() },
+                enabled = tracks.isNotEmpty() && !viewModel.blockPlaylist.value
+            ) {
+                Text(text = "WIPE")
             }
         }
         LazyColumn(
             Modifier.padding(),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            state = listState
         ) {
             items(tracks.toTypedArray()) { track ->
                 ElevatedCard(
@@ -159,7 +169,10 @@ fun PlaylistView(
                             painter = painterResource(id = R.drawable.ic_baseline_remove_24),
                             contentDescription = "Remove from playlist",
                             tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.clickable { removeTrackCallback(track.first) }
+                            modifier = Modifier.clickable(
+                                indication = null,
+                                interactionSource = MutableInteractionSource()
+                            ) { removeTrackCallback(track.first) }
                         )
                     }
                 }
