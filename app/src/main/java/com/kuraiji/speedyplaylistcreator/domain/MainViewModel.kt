@@ -6,12 +6,14 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.lifecycle.*
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.work.*
 import com.kuraiji.speedyplaylistcreator.common.debugLog
 import com.kuraiji.speedyplaylistcreator.common.splitPair
 import com.kuraiji.speedyplaylistcreator.data.PlaylistData
 import com.kuraiji.speedyplaylistcreator.data.PlaylistManager
+import com.kuraiji.speedyplaylistcreator.ui.MainActivity
 import kotlinx.coroutines.launch
 
 private const val WORKNAME = "index"
@@ -34,6 +36,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _albumoffset = mutableStateOf(0)
     val albumoffset: State<Int> = _albumoffset
 
+    private val testAlbums = mutableStateListOf<PlaylistData.AlbumArtist>()
+    val testAl: List<PlaylistData.AlbumArtist> = testAlbums
+
     private val _playlist = mutableStateMapOf<String, Pair<PlaylistData.Track, Long>>()
     private val _playlistIndex = mutableStateOf<Long>(0)
     val playlist: Map<String, Pair<PlaylistData.Track, Long>> = _playlist
@@ -43,6 +48,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         fullIndex()
+        viewModelScope.launch {
+            PlaylistData.PlaylistDatabase.getDatabase(application).albumArtistDao().selectAll().observeForever { array ->
+                testAlbums.clear()
+                array.forEach { albumArtist ->
+                    testAlbums.add(albumArtist)
+                }
+            }
+        }
     }
 
     fun savePlaylist(fileUri: Uri) {

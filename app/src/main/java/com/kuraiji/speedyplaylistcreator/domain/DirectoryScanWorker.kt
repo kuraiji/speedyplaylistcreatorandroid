@@ -39,9 +39,10 @@ class DirectoryScanWorker(
             ForegroundInfo(
                 Random.nextInt(),
                 NotificationCompat.Builder(context, "scan_channel")
-                    .setSmallIcon(R.drawable.ic_launcher_background)
+                    .setSmallIcon(R.drawable.ic_baseline_music_note_24)
                     .setContentText("Scanning...")
                     .setContentTitle("Scan in progress")
+                    .setProgress(0, 10, true)
                     .build()
             )
         )

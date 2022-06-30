@@ -5,12 +5,14 @@ import android.content.Intent
 import android.content.res.Configuration
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -22,6 +24,7 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.work.*
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kuraiji.speedyplaylistcreator.common.debugLog
+import com.kuraiji.speedyplaylistcreator.data.PlaylistData
 import com.kuraiji.speedyplaylistcreator.data.PlaylistManager
 
 import com.ramcosta.composedestinations.annotation.Destination
@@ -67,6 +70,13 @@ fun LandingPreview() {
                 ) {
                     Text(text = "Select Directory")
                 }
+                Spacer(modifier = Modifier.padding(vertical = 10.dp))
+                AnimatedVisibility(visible = true) {
+                    Text(
+                        text = "Tracks Scanned: 20,000",
+                        textAlign = TextAlign.Center,
+                    )
+                }
             }
         }
     }
@@ -78,12 +88,22 @@ fun LandingPreview() {
 fun LandingDestination(
     navigator: DestinationsNavigator
 ) {
+    val context = LocalContext.current
+    val landingView = remember { mutableStateOf(false) }
+
+    LaunchedEffect(key1 = null) {
+        launch {
+            if(PlaylistManager.getInitialScan(context)) navigator.navigate(MainDestination())
+            else landingView.value = true
+        }
+    }
+
     SpeedyPlaylistCreatorTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            LandingPage(navigator)
+            if(landingView.value) LandingPage(navigator)
         }
     }
 }
@@ -98,44 +118,40 @@ fun LandingPage(
     var scanRequest: OneTimeWorkRequest
     val (state, setState) = remember { mutableStateOf(WorkInfo.State.BLOCKED)}
     val (trackAmt, setTrackAmt) = remember { mutableStateOf(0) }
-    LaunchedEffect(key1 = null) {
-        workManager.pruneWork()
-        launch {
-            if(!PlaylistManager.isDatabaseEmpty(context)) navigator?.navigate(MainDestination())
-        }
-    }
+    val uriAmount = PlaylistData.PlaylistDatabase.getDatabase(context).uriDao().numOfRowsLiveData().observeAsState()
+
     workManager.getWorkInfosForUniqueWorkLiveData(WORKNAME).observe(context as MainActivity) { workInfoList ->
         if(workInfoList == null || workInfoList.size < 1) return@observe
         setState(workInfoList[0].state)
-        if(!viewModel.notEntered.value || !viewModel.started.value || workInfoList[0].state == WorkInfo.State.RUNNING) return@observe
+        if(!viewModel.notEntered.value
+            || !viewModel.started.value
+            || workInfoList[0].state == WorkInfo.State.RUNNING
+            || !PlaylistManager.getInitialScan(context)
+        ) return@observe
         viewModel.notEntered.value = false
         setTrackAmt(workInfoList[0].outputData.getInt(WorkerKeys.TRACK_AMT, 0))
         navigator?.navigate(MainDestination())
     }
+
     val openDirectoryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()) {
         if(it.resultCode != RESULT_OK) {
             return@rememberLauncherForActivityResult
         }
-        it.data?.also { uri ->
-            uri.data?.let { iUri ->
-                context.contentResolver.takePersistableUriPermission(iUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                DocumentFile.fromTreeUri(context, iUri)
-                ?.let { dFile ->
-                    PlaylistManager.saveBaseDir(context, dFile.uri)
-                    scanRequest = OneTimeWorkRequestBuilder<DirectoryScanWorker>()
-                        .setConstraints(
-                            Constraints.Builder()
-                                .setRequiresStorageNotLow(true)
-                                .setRequiresBatteryNotLow(true)
-                                .build()
-                        ).setInputData(
-                            Data.Builder().putString(WorkerKeys.DIR_URI, dFile.uri.toString()).build()
-                        ).build()
-                    workManager.beginUniqueWork(WORKNAME, ExistingWorkPolicy.REPLACE, scanRequest).enqueue()
-                }
-            }
-        }
+        val uri = it.data?.data ?: return@rememberLauncherForActivityResult
+        context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        val dFile = DocumentFile.fromTreeUri(context, uri) ?: return@rememberLauncherForActivityResult
+        PlaylistManager.saveBaseDir(context, dFile.uri)
+        scanRequest = OneTimeWorkRequestBuilder<DirectoryScanWorker>()
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiresStorageNotLow(true)
+                    .setRequiresBatteryNotLow(true)
+                    .build()
+            ).setInputData(
+                Data.Builder().putString(WorkerKeys.DIR_URI, dFile.uri.toString()).build()
+            ).build()
+        workManager.beginUniqueWork(WORKNAME, ExistingWorkPolicy.REPLACE, scanRequest).enqueue()
     }
 
     Column(
@@ -144,7 +160,8 @@ fun LandingPage(
         Text(
             text = "Welcome to Speedy Playlist Creator!",
             style = AppTypography.titleLarge,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(40.dp))
         Text(
@@ -162,6 +179,13 @@ fun LandingPage(
             enabled = state != WorkInfo.State.RUNNING && trackAmt < 1
             ) {
             Text(text = if(state != WorkInfo.State.RUNNING && trackAmt < 1) "Select Directory" else "Scanning... Please Wait")
+        }
+        Spacer(modifier = Modifier.padding(vertical = 10.dp))
+        AnimatedVisibility(visible = uriAmount.value != null && uriAmount.value!! > 0) {
+            Text(
+                text = "Tracks Scanned: ${uriAmount.value}",
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }

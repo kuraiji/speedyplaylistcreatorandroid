@@ -99,6 +99,11 @@ fun MainAlbumPreview() {
     }
 }
 
+//TODO: Pressing delete button effect stays to the next element
+//TODO: When entering automatically position list to the bottom
+//TODO: Wipe list button
+//TODO: Block buttons when saving/loading playlist
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaylistView(

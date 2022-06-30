@@ -1,14 +1,12 @@
 package com.kuraiji.speedyplaylistcreator.data
 
 import android.content.Context
-import android.content.Intent
+import android.content.SharedPreferences
 import android.database.sqlite.SQLiteConstraintException
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.media.MediaMetadataRetriever
-import android.content.SharedPreferences
-import androidx.core.net.toFile
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import androidx.room.*
@@ -16,7 +14,6 @@ import androidx.lifecycle.LiveData
 import com.kuraiji.speedyplaylistcreator.common.debugLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.lang.RuntimeException
@@ -24,7 +21,7 @@ import java.lang.RuntimeException
 private val IMAGE_NAMES = arrayOf("cover", "front", "folder")
 private const val SAVE_NAME = "sav"
 private const val SAVE_KEY_BASEDIR = "baseDir"
-private const val MIME_TYPE = "audio/x-mpegurl"
+private const val SAVE_KEY_INITIALLOAD = "initialLoad"
 
 object PlaylistManager {
     suspend fun isDatabaseEmpty(context: Context) : Boolean = withContext(Dispatchers.Default) {
@@ -41,6 +38,7 @@ object PlaylistManager {
             if(uri.path == null) return@forEach
             uriDao.insert(PlaylistData.Uri(uri.toString(), uri.path!!))
         }
+        setInitialScan(context, true)
     }
 
     fun indexUris(context: Context, callback: (Int)->Unit) {
@@ -48,7 +46,7 @@ object PlaylistManager {
         val uriDao = db.uriDao()
         val trackDao = db.trackDao()
         val albumDao = db.albumArtistDao()
-        uriDao.selectAll().forEachIndexed { index, row ->
+        uriDao.selectAll().clone().forEachIndexed { index, row ->
             val uri = row.uri.toUri()
             val mmr = MediaMetadataRetriever()
             try {
@@ -56,23 +54,29 @@ object PlaylistManager {
             }
             catch (err: RuntimeException) {
                 callback(index)
+                uriDao.deleteUris(row)
                 return@forEachIndexed
             }
-            val trackName = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: ""
-            val trackNum = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER) ?: ""
-            val discNum = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DISC_NUMBER) ?: ""
+            val trackName: String = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: ""
+            var trackNum = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER) ?: ""
+            var discNum = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DISC_NUMBER) ?: ""
             val album = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM) ?: ""
             val artist = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST) ?:
                 mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: ""
-            trackDao.insert(PlaylistData.Track(
-                0,
-                trackName,
-                if(trackNum != "") trackNum.toInt() else 0,
-                if(discNum != "") discNum.toInt() else 0,
-                album,
-                artist,
-                row.uri
-            ))
+            trackNum = trackNum.filter { it.isDigit() }
+            discNum = discNum.filter { it.isDigit() }
+            try {
+                trackDao.insert(PlaylistData.Track(
+                    0,
+                    trackName,
+                    if(trackNum != "") trackNum.toInt() else 0,
+                    if(discNum != "") discNum.toInt() else 0,
+                    album,
+                    artist,
+                    row.uri
+                ))
+            }
+            catch(err: SQLiteConstraintException) { }
             try {
                 albumDao.insert(PlaylistData.AlbumArtist(
                     album,
@@ -80,8 +84,14 @@ object PlaylistManager {
                 ))
             }
             catch (err: SQLiteConstraintException) { }
-            mmr.close()
+            try {
+                mmr.close()
+            }
+            catch (err: NoSuchMethodError) {
+                mmr.release()
+            }
             callback(index)
+            uriDao.deleteUris(row)
         }
     }
 
@@ -135,7 +145,8 @@ object PlaylistManager {
     }
 
     fun saveBaseDir(context: Context, uri: Uri) {
-        val sharedPreferences = context.getSharedPreferences(SAVE_NAME, Context.MODE_PRIVATE)
+        //val sharedPreferences = context.getSharedPreferences(SAVE_NAME, Context.MODE_PRIVATE)
+        val sharedPreferences = PlaylistData.PlaylistDatabase.getSharedPreference(context)
         with (sharedPreferences.edit()) {
             putString(SAVE_KEY_BASEDIR, uri.toString())
             apply()
@@ -143,9 +154,25 @@ object PlaylistManager {
     }
 
     fun loadBaseDir(context: Context) : Uri {
-        val sharedPreferences = context.getSharedPreferences(SAVE_NAME, Context.MODE_PRIVATE)
+        //val sharedPreferences = context.getSharedPreferences(SAVE_NAME, Context.MODE_PRIVATE)
+        val sharedPreferences = PlaylistData.PlaylistDatabase.getSharedPreference(context)
         val uriString = sharedPreferences.getString(SAVE_KEY_BASEDIR, "") ?: ""
         return if(uriString != "") uriString.toUri() else Uri.EMPTY
+    }
+
+    fun setInitialScan(context: Context, state: Boolean) {
+        //val sharedPreferences = context.getSharedPreferences(SAVE_NAME, Context.MODE_PRIVATE)
+        val sharedPreferences = PlaylistData.PlaylistDatabase.getSharedPreference(context)
+        with (sharedPreferences.edit()) {
+            putBoolean(SAVE_KEY_INITIALLOAD, state)
+            apply()
+        }
+    }
+
+    fun getInitialScan(context: Context) : Boolean {
+        //val sharedPreferences = context.get
+        val sharedPreferences = PlaylistData.PlaylistDatabase.getSharedPreference(context)
+        return sharedPreferences.getBoolean(SAVE_KEY_INITIALLOAD, false)
     }
 
     suspend fun savePlaylistToFile(context: Context, tracks: Array<PlaylistData.Track>, fileUri: Uri) = withContext(Dispatchers.Default) {
@@ -215,7 +242,7 @@ class PlaylistData {
 
     @Entity
     data class Uri(
-        @PrimaryKey()
+        @PrimaryKey
         val uri: String,
         val path: String
     )
@@ -227,17 +254,28 @@ class PlaylistData {
         abstract fun uriDao(): UriDao
 
         companion object {
-            private var INSTANCE: PlaylistDatabase? = null
+            private var DB_INSTANCE: PlaylistDatabase? = null
+            private var SP_INSTANCE: SharedPreferences? = null
+
             fun getDatabase(context: Context): PlaylistDatabase {
-                if(INSTANCE == null) {
+                if(DB_INSTANCE == null) {
                     synchronized(this) {
-                        INSTANCE = Room.databaseBuilder(
+                        DB_INSTANCE = Room.databaseBuilder(
                             context,
                             PlaylistDatabase::class.java, "PlaylistDatabase"
                         ).fallbackToDestructiveMigration().build()
                     }
                 }
-                return INSTANCE!!
+                return DB_INSTANCE!!
+            }
+
+            fun getSharedPreference(context: Context) : SharedPreferences {
+                if(SP_INSTANCE == null) {
+                    synchronized(this) {
+                        SP_INSTANCE = context.getSharedPreferences(SAVE_NAME, Context.MODE_PRIVATE)
+                    }
+                }
+                return SP_INSTANCE!!
             }
         }
     }
@@ -273,5 +311,9 @@ class PlaylistData {
         fun selectAll(): Array<Uri>
         @Query("SELECT COUNT(*) FROM uri")
         fun numOfRows(): Long
+        @Query("SELECT COUNT(*) FROM uri")
+        fun numOfRowsLiveData() : LiveData<Long>
+        @Delete
+        fun deleteUris(vararg uris: Uri)
     }
 }

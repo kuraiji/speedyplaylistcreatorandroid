@@ -32,7 +32,7 @@ class IndexTracksWorker(
 
     private suspend fun startForegroundService() {
         notification = NotificationCompat.Builder(context, "scan_channel")
-            .setSmallIcon(R.drawable.ic_launcher_background)
+            .setSmallIcon(R.drawable.ic_baseline_music_note_24)
             .setContentText("Indexing Tracks...")
             .setContentTitle("Indexing in progress")
             .setProgress(trackAmt.toInt(), 0, false)
@@ -46,7 +46,6 @@ class IndexTracksWorker(
     }
 
     private fun updateProgress(num: Int) {
-
         notification.setProgress(trackAmt.toInt(), num, false)
         if((num + 1) >= trackAmt) notification.setOngoing(false)
         notificationManager.notify(notId, notification.build())

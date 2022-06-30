@@ -13,7 +13,7 @@ class ScanApplication: Application() {
             val channel = NotificationChannel(
                 "scan_channel",
                 "scan directory",
-                NotificationManager.IMPORTANCE_HIGH
+                NotificationManager.IMPORTANCE_LOW
             )
             val notificationManager = getSystemService(NotificationManager::class.java)
             notificationManager.createNotificationChannel(channel)

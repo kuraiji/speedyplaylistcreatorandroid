@@ -40,6 +40,8 @@ import com.kuraiji.speedyplaylistcreator.ui.views.TrackView
 import com.ramcosta.composedestinations.navigation.DestinationsNavigator
 import com.ramcosta.composedestinations.annotation.Destination
 
+val MIME_TYPE = "audio/mpegurl"
+
 @Preview(showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES, name = "Album Dark Mode")
 @Preview(showBackground = true, name = "Album Light Mode")
 @Composable
@@ -62,63 +64,6 @@ fun MainAlbumPreview() {
                             .padding(0.dp)
                             .aspectRatio(1F)
                     )
-                }
-            }
-        }
-    }
-}
-@Preview(showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES, name = "Track Dark Mode")
-@Preview(showBackground = true, name = "Track Light Mode")
-@Composable
-fun MainTrackPreview() {
-    val tracks: Array<PlaylistData.Track> = arrayOf(
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-        PlaylistData.Track(0, "Title Theme", 0, 0, "", "", ""),
-    )
-    val vw = LocalConfiguration.current.screenWidthDp
-    val vh = LocalConfiguration.current.screenHeightDp
-    SpeedyPlaylistCreatorTheme(dynamicColor = false) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background
-        ) {
-            Column {
-                Column(
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .width(vw.dp)
-                        .padding(vertical = (vh * .05).dp)
-                ) {
-                    Box(modifier = Modifier
-                        .requiredSize((vw * .50).dp)
-                        .background(MaterialTheme.colorScheme.error))
-                    Text(
-                        text = "Shin Megami Tensei IV",
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.padding(vertical = 5.dp)
-                    )
-                    Text(
-                        text = "ATLUS",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(vertical = 0.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.padding())
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    items(tracks) { track: PlaylistData.Track ->
-                        TrackItem(track = track, modifier = Modifier)
-                    }
                 }
             }
         }
@@ -158,29 +103,30 @@ fun Main(
     val trackViewCallback: (PlaylistData.Track) -> Unit = { track ->
         viewModel.toggleAddToPlaylist(track)
     }
+
     val savePlaylistCallback: () -> Unit = {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             createFileLauncher.launch(Intent(Intent.ACTION_CREATE_DOCUMENT)
-                .setType("audio/x-mpegurl")
+                .setType(MIME_TYPE)
                 .putExtra(DocumentsContract.EXTRA_INITIAL_URI, viewModel.baseDirUri.toString())
             )
         }
         else {
             createFileLauncher.launch(Intent(Intent.ACTION_CREATE_DOCUMENT)
-                .setType("audio/x-mpegurl")
+                .setType(MIME_TYPE)
             )
         }
     }
     val loadPlaylistCallback: () -> Unit = {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             openFileLauncher.launch(Intent(Intent.ACTION_OPEN_DOCUMENT)
-                .setType("audio/x-mpegurl")
+                .setType(MIME_TYPE)
                 .putExtra(DocumentsContract.EXTRA_INITIAL_URI, viewModel.baseDirUri.toString())
             )
         }
         else {
             openFileLauncher.launch(Intent(Intent.ACTION_OPEN_DOCUMENT)
-                .setType("audio/x-mpegurl")
+                .setType(MIME_TYPE)
             )
         }
     }
